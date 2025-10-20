@@ -12,7 +12,7 @@ import { apiRequest, queryClient } from "../lib/queryClient"; // Assumes client/
 import { Upload, Save, Eye, Edit2, Trash2, Calendar, Phone, Mail, User, Plus, FileImage } from "lucide-react";
 // Using explicit relative import path
 import AdminLogin from "./admin-login"; 
-import MessagesList from "./messageslist.tsx";
+import MessagesList from "./messageslist";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock, MessageSquare } from "lucide-react";
 
