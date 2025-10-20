@@ -1,21 +1,26 @@
-  import { QueryClient, QueryFunction } from "@tanstack/react-query";
+ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-// Helper function to throw an error if the fetch response is not OK
+/**
+ * Throws an error if the fetch response is not OK.
+ */
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    // Try to extract response text or fallback to status text
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
   }
 }
 
-// Generic API request function supporting GET, POST, PUT, DELETE, etc.
+/**
+ * Generic API request helper for POST, PUT, DELETE, etc.
+ */
 export async function apiRequest(
   method: string,
-  url: string,
+  endpoint: string,
   data?: unknown
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const apiBase = process.env.REACT_APP_API_URL || window.location.origin;
+
+  const res = await fetch(`${apiBase}${endpoint}`, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
@@ -26,51 +31,45 @@ export async function apiRequest(
   return res;
 }
 
-// Define behavior type for handling unauthorized (401) responses
+/**
+ * Behavior for handling unauthorized (401) responses
+ */
 type UnauthorizedBehavior = "returnNull" | "throw";
 
-// Create a generic query function factory that adds cache busting and logs
+/**
+ * Generic query function factory for use with React Query
+ */
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> = ({ on401: unauthorizedBehavior }) => async ({ queryKey }) => {
   try {
-    // Construct the URL and append a cache-busting timestamp parameter
-    const url = new URL(queryKey[0] as string, window.location.origin);
+    const apiBase = process.env.REACT_APP_API_URL || window.location.origin;
+    const endpoint = queryKey[0] as string;
+
+    // Cache-busting param
+    const url = new URL(`${apiBase}${endpoint}`);
     url.searchParams.set("_ts", Date.now().toString());
 
-    // Log the fetch URL for debugging purposes
-    console.log(`Fetching data from: ${url.toString()}`);
+    const res = await fetch(url.toString(), { credentials: "include" });
 
-    // Perform the fetch request with credentials included (cookies, etc.)
-    const res = await fetch(url.toString(), {
-      credentials: "include",
-    });
-
-    // Handle unauthorized responses based on the given behavior
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      console.warn("Unauthorized request detected (401), returning null as per config.");
+      console.warn("Unauthorized (401) detected — returning null.");
       return null as unknown as T;
     }
 
-    // Throw error if response is not OK, with detailed message
-    if (!res.ok) {
-      const text = await res.text();
-      console.error(`Fetch error: ${res.status} - ${text}`);
-      throw new Error(`${res.status}: ${text}`);
-    }
-
-    // Parse and return JSON response data
+    await throwIfResNotOk(res);
     const json = await res.json();
-    console.log("Fetch successful, received data:", json);
+    console.log("Fetched:", url.toString(), json);
     return json;
   } catch (error) {
-    // Log any unexpected errors and rethrow to propagate error states
-    console.error("Error in query function:", error);
+    console.error("Query function error:", error);
     throw error;
   }
 };
 
-// Instantiate and export a QueryClient with sensible defaults including the cache-busting query function
+/**
+ * Create and export a global QueryClient with sensible defaults
+ */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
